@@ -19,8 +19,8 @@ from numpy import zeros, array, roll, vectorize
 _ADD = lambda a, b: (a[0] + b[0], a[1] + b[1])
 
 # Neighbour hex steps in clockwise order
-_HEX_STEPS = array([(1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1)], 
-    dtype="i,i")
+_HEX_STEPS = array([(1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1)],
+                   dtype="i,i")
 
 # Pre-compute diamond capture patterns - each capture pattern is a 
 # list of offset steps:
@@ -33,17 +33,18 @@ _HEX_STEPS = array([(1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1)],
 # neighbours are adjacent to each other (roll 1), OR "sideways", in
 # which case the neighbours are spaced apart (roll 2). This means
 # for a given cell, it is part of 6 + 6 possible diamonds.
-_CAPTURE_PATTERNS = [[_ADD(n1, n2), n1, n2] 
-    for n1, n2 in 
-        list(zip(_HEX_STEPS, roll(_HEX_STEPS, 1))) + 
-        list(zip(_HEX_STEPS, roll(_HEX_STEPS, 2)))]
+_CAPTURE_PATTERNS = [[_ADD(n1, n2), n1, n2]
+                     for n1, n2 in
+                     list(zip(_HEX_STEPS, roll(_HEX_STEPS, 1))) +
+                     list(zip(_HEX_STEPS, roll(_HEX_STEPS, 2)))]
 
 # Maps between player string and internal token type
-_TOKEN_MAP_OUT = { 0: None, 1: "red", 2: "blue" }
+_TOKEN_MAP_OUT = {0: None, 1: "red", 2: "blue"}
 _TOKEN_MAP_IN = {v: k for k, v in _TOKEN_MAP_OUT.items()}
 
 # Map between player token types
-_SWAP_PLAYER = { 0: 0, 1: 2, 2: 1 }
+_SWAP_PLAYER = {0: 0, 1: 2, 2: 1}
+
 
 class Board:
     def __init__(self, n):
@@ -156,4 +157,4 @@ class Board:
         Returns (within-bounds) neighbouring coordinates for given coord.
         """
         return [_ADD(coord, step) for step in _HEX_STEPS \
-            if self.inside_bounds(_ADD(coord, step))]
+                if self.inside_bounds(_ADD(coord, step))]
