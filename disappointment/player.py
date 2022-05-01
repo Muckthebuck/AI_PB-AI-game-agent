@@ -1,6 +1,8 @@
 from path_search import *
 from numpy import random
-
+from copy import  deepcopy
+from scipy.stats import gmean
+from path_cost_weights import  g_weights
 POSSIBLE_DIAMONDS = [[(2, -1), (0, 0), (1, -1), (1, 0)], [(0, 0), (-2, 1), (-1, 0), (-1, 1)],
                      [(1, -1), (-1, 0), (0, -1), (0, 0)], [(1, 0), (-1, 1), (0, 1), (0, 0)],
                      [(1, 0), (0, 0), (1, -1), (0, 1)], [(0, 0), (-1, 0), (0, -1), (-1, 1)],
@@ -28,33 +30,11 @@ class Player:
         self.color = player
         self.n = n
         self.gameState = Graph(n, player)
-        self.begin: List[Location] = []
-        self.goal: List[Location] = []
+
         self.prevMove: Location = []
         self.currMove: Location = []
-        self.nlinkedPath = 0
-        self.prevLinkedPath = 0
-        if player == red:
-            for i in range(0, n):
-                nCell = [0] * 2
-                nCell[0] = 0
-                nCell[1] = i
-                self.begin.append(tuple(nCell))
-                gCell = [0] * 2
-                gCell[0] = n - 1
-                gCell[1] = i
-                self.goal.append(tuple(gCell))
-        else:
-            self.goal = []
-            for i in range(0, n):
-                nCell = [0] * 2
-                nCell[0] = i
-                nCell[1] = 0
-                self.begin.append(tuple(nCell))
-                gCell = [0] * 2
-                gCell[0] = i
-                gCell[1] = n - 1
-                self.goal.append(tuple(gCell))
+
+
 
     def action(self):
         """
@@ -66,6 +46,7 @@ class Player:
         print(self.prevMove)
         print(location)
         self.currMove = location
+        self.gameState.turn += 1
         return (str("PLACE"), int(location[0]), int(location[1]))
 
     def turn(self, player, action):
@@ -83,16 +64,21 @@ class Player:
         cell[0] = action[1]
         cell[1] = action[2]
         self.gameState.set_cell_color(tuple(cell), player)
-        self.check_diamond(cell[0], cell[1], player)
+        if player == self.color:
+            self.gameState.nPlayerCells += 1
+        elif player == self.gameState.enemy:
+            self.gameState.nEnemyCells += 1
+
+        self.check_diamond(cell[0], cell[1], player, self.gameState)
         return
 
-    def check_diamond(self, r, c, player):
+    def check_diamond(self, r, c, player, gameState):
         to_clear = []
         for cells in self.generate_valid_diamonds(r, c):
-            up = self.gameState.cell_color(cells[0])
-            down = self.gameState.cell_color(cells[1])
-            left = self.gameState.cell_color(cells[2])
-            right = self.gameState.cell_color(cells[3])
+            up = gameState.cell_color(cells[0])
+            down = gameState.cell_color(cells[1])
+            left = gameState.cell_color(cells[2])
+            right = gameState.cell_color(cells[3])
             if up == down and left == right and up != left:
                 if up == player or down == player:
                     to_clear.append(cells[2])
@@ -101,7 +87,11 @@ class Player:
                     to_clear.append(cells[0])
                     to_clear.append(cells[1])
         for cell in to_clear:
-            self.gameState.set_cell_color(cell, empty)
+            if gameState.cell_color(cell) == player:
+                gameState.nPlayerCells -= 1
+            elif gameState.cell_color(cell) == gameState.enemy:
+                gameState.nEnemyCells -= 1
+            gameState.set_cell_color(cell, empty)
 
     def generate_valid_diamonds(self, r, c):
         valid_diamonds = []
@@ -119,34 +109,12 @@ class Player:
         return valid_diamonds
 
     def get_next_move(self) -> Location:
-        cost = inf
-        reachedGoal = False
-        path: List[Location] = []
+
         move: Location = []
-        location: Location = []
         location1: Location = []
-        for start in self.begin:
-            if self.gameState.cell_color(start) == self.gameState.enemy:
-                continue
-            reached_goal, came_from, cost_so_far, endGoal = a_star_search(self.gameState, start, self.goal)
-            if not reached_goal:
-                continue
-            else:
-                reachedGoal = True
-                if cost_so_far[endGoal] < cost:
-                    cost = cost_so_far[endGoal]
-                    path = reconstruct_path(came_from, start, endGoal)
-        print(path)
-        if reachedGoal:
-            self.prevLinkedPath = self.nlinkedPath
-            self.nlinkedPath = 0
-            for cell in path:
-                if self.gameState.cell_color(cell) == self.color:
-                    self.nlinkedPath += 1
-                if self.gameState.cell_color(cell) == empty:
-                    location = cell
-                    break
-        location1 = self.find_capture_move()
+        capture_potential = 0
+        location, location_weight = self.find_path_move(self.gameState)
+        location1, location1_weight = self.find_capture_move(self.gameState)
         if not location1:
             move = location
         else:
@@ -171,36 +139,113 @@ class Player:
             print(move)
         return move
 
-    def find_capture_move(self) -> Location:
+    def find_path_move(self, gameState: Graph):
+        path_progress_contribution, path, reachedGoal = self.perform_path_search(gameState)
+        print(path)
+        move = self.get_move_from_path(reachedGoal, path, gameState)
+        move_eval = path_progress_contribution + self.move_capture_potential(move, gameState)
+        return move, move_eval
+
+    def get_move_from_path(self, reachedGoal, path: List[Location], gameState: Graph):
+        move: Location = []
+        if reachedGoal:
+            for cell in path:
+                if gameState.cell_color(cell) == empty:
+                    move = cell
+                    break
+        return move
+
+    def find_capture_move(self, gameState: Graph) -> Location:
         move: Location = []
         nCaptures = 0
-        for cell in self.gameState.playerCell:
+        for cell in gameState.playerCell:
             r = cell[0]
             c = cell[1]
             cnt = 0
             for cells in self.generate_valid_diamonds(r, c):
-                up = self.gameState.cell_color(cells[0])
-                down = self.gameState.cell_color(cells[1])
-                left = self.gameState.cell_color(cells[2])
-                right = self.gameState.cell_color(cells[3])
+                up = gameState.cell_color(cells[0])
+                down = gameState.cell_color(cells[1])
+                left = gameState.cell_color(cells[2])
+                right = gameState.cell_color(cells[3])
                 if down == empty and left == right and up != left:
-                    cnt = self.move_capture_potential(cells[1])
+                    cnt = self.move_capture_potential(cells[1], gameState)
                     if cnt > nCaptures:
                         nCaptures = cnt
                         move = cells[1]
         print('capture potential', end=' ')
         print(nCaptures)
-        return move
 
-    def move_capture_potential(self, location: Location):
+        # find path progress contribution relative to past moves
+        gameStateCopy = deepcopy(gameState)
+        gameStateCopy.set_cell_color(move, gameStateCopy.player)
+        gameStateCopy.nPlayerCells += 1
+        self.check_diamond(move[0], move[1], gameStateCopy.player, gameStateCopy)
+        path_progress_contribution, _, __ = self.perform_path_search(gameStateCopy)
+
+        # total evaluation of this move
+        move_eval = path_progress_contribution + nCaptures
+        return move, move_eval
+
+    def move_capture_potential(self, location: Location, gameState: Graph):
         r = location[0]
         c = location[1]
         cnt = 0
         for cells in self.generate_valid_diamonds(r, c):
-            up = self.gameState.cell_color(cells[0])
-            down = self.gameState.cell_color(cells[1])
-            left = self.gameState.cell_color(cells[2])
-            right = self.gameState.cell_color(cells[3])
+            up = gameState.cell_color(cells[0])
+            down = gameState.cell_color(cells[1])
+            left = gameState.cell_color(cells[2])
+            right = gameState.cell_color(cells[3])
             if up == empty and left == right and down != left and down != up:
                 cnt += 1
         return cnt
+
+    def perform_path_search(self, gameState: Graph):
+        cost = inf
+        reachedGoal = False
+        path: List[Location] = []
+        move: Location = []
+        for start in gameState.begin:
+            if gameState.cell_color(start) == gameState.enemy:
+                continue
+            reached_goal, came_from, cost_so_far, endGoal = a_star_search(gameState, start, gameState.goal)
+            if not reached_goal:
+                continue
+            else:
+                reachedGoal = True
+                if cost_so_far[endGoal] < cost:
+                    cost = cost_so_far[endGoal]
+                    path = reconstruct_path(came_from, start, endGoal)
+
+        cost_vector = cost * np.ones(gameState.turn)
+        path_cost_dif =  np.subtract(gameState.path_costs[0:gameState.turn],cost_vector)
+        gameState.path_costs[gameState.turn-1] = cost
+        path_cost_dif = np.flip(path_cost_dif)
+        # path_cost_diff is used to find out how much better we are doing than previous moves
+        # we now multiply them with a weight from geometric series 1/k^n and get a dot product
+        relative_path_cost = np.dot(path_cost_dif, g_weights)
+        c1 = 0.4
+        c2 = 0
+        path_progress_contribution = self.sigmoid(c1,c2,relative_path_cost)*relative_path_cost
+
+        return path_progress_contribution, path, reachedGoal
+
+    def sigmoid(self, c1, c2, x):
+        return 1/(1 + np.exp(-c1 * (x - c2)))
+
+    def evaluation_move(self, move):
+        self.move_capture_potential(move)
+
+    def Max_Value(self, move, state, alpha, beta, curr_depth, max_depth):
+        if curr_depth == max_depth:
+            return
+
+    def Min_Value(self, state, ):
+        return
+
+
+    def apply_move(self):
+
+        return
+
+    def getMoves(self):
+        (move1, move1_eval)= self.find_capture_move()

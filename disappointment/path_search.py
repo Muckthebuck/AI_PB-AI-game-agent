@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple, TypeVar, Optional
 import random
+import  numpy as np
 from numpy import inf
 
 T = TypeVar('T')
@@ -20,6 +21,15 @@ class Graph:
         self.enemy = red if player == blue else blue
         self.cell: Dict[Location, List[Color, Location]] = {}
         self.playerCell: Dict[Location, Color] = {}
+        self.nlinkedPath = 0
+        self.prevLinkedPath = 0
+        self.turn = 0
+        self.maxTurns = 344
+        self.nPlayerCells = 0
+        self.nEnemyCells = 0
+        self.begin: List[Location] = []
+        self.goal: List[Location] = []
+        self.path_costs = np.zeros(self.maxTurns)
         moves = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
         for i in range(0, n):
             for j in range(0, n):
@@ -34,6 +44,26 @@ class Graph:
                         neighbours.append(tuple(nCell))
                 self.cell.update({tuple(curr): [color, neighbours]})
                 # print(curr, neighbours)
+        if player == red:
+            for i in range(0, n):
+                nCell = [0] * 2
+                nCell[0] = 0
+                nCell[1] = i
+                self.begin.append(tuple(nCell))
+                gCell = [0] * 2
+                gCell[0] = n - 1
+                gCell[1] = i
+                self.goal.append(tuple(gCell))
+        else:
+            for i in range(0, n):
+                nCell = [0] * 2
+                nCell[0] = i
+                nCell[1] = 0
+                self.begin.append(tuple(nCell))
+                gCell = [0] * 2
+                gCell[0] = i
+                gCell[1] = n - 1
+                self.goal.append(tuple(gCell))
 
     def print(self):
         for cell, neighbours in self.cell.items():
