@@ -19,17 +19,23 @@ class Graph:
     def __init__(self, n, player):
         self.player = player
         self.enemy = red if player == blue else blue
-        self.cell: Dict[Location, List[Color, Location]] = {}
+        self.cell: Dict[Location, List[Color, List[Location]]] = {}
         self.playerCell: Dict[Location, Color] = {}
         self.nlinkedPath = 0
         self.prevLinkedPath = 0
-        self.turn = 0
+        self.blue_turn = 0
+        self.red_turn = 0
         self.maxTurns = 344
         self.nPlayerCells = 0
         self.nEnemyCells = 0
         self.begin: List[Location] = []
         self.goal: List[Location] = []
-        self.path_costs = np.zeros(self.maxTurns)
+        self.red_begin: List[Location] = []
+        self.red_goal: List[Location] = []
+        self.blue_begin: List[Location] = []
+        self.blue_goal: List[Location] = []
+        self.red_path_costs = np.zeros(self.maxTurns)
+        self.blue_path_costs = np.zeros(self.maxTurns)
         moves = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
         for i in range(0, n):
             for j in range(0, n):
@@ -44,36 +50,50 @@ class Graph:
                         neighbours.append(tuple(nCell))
                 self.cell.update({tuple(curr): [color, neighbours]})
                 # print(curr, neighbours)
+        for i in range(0, n):
+            nCell = [0] * 2
+            nCell[0] = 0
+            nCell[1] = i
+            self.red_begin.append(tuple(nCell))
+            gCell = [0] * 2
+            gCell[0] = n - 1
+            gCell[1] = i
+            self.red_goal.append(tuple(gCell))
+        for i in range(0, n):
+            nCell = [0] * 2
+            nCell[0] = i
+            nCell[1] = 0
+            self.blue_begin.append(tuple(nCell))
+            gCell = [0] * 2
+            gCell[0] = i
+            gCell[1] = n - 1
+            self.blue_goal.append(tuple(gCell))
         if player == red:
-            for i in range(0, n):
-                nCell = [0] * 2
-                nCell[0] = 0
-                nCell[1] = i
-                self.begin.append(tuple(nCell))
-                gCell = [0] * 2
-                gCell[0] = n - 1
-                gCell[1] = i
-                self.goal.append(tuple(gCell))
+            self.begin = self.red_begin
+            self.goal = self.red_goal
         else:
-            for i in range(0, n):
-                nCell = [0] * 2
-                nCell[0] = i
-                nCell[1] = 0
-                self.begin.append(tuple(nCell))
-                gCell = [0] * 2
-                gCell[0] = i
-                gCell[1] = n - 1
-                self.goal.append(tuple(gCell))
+            self.begin = self.blue_begin
+            self.goal = self.blue_goal
+
+    def flip_player_color(self):
+        self.player, self.enemy = self.enemy, self.player
+        if self.player == red:
+            self.begin = self.red_begin
+            self.goal = self.red_goal
+        else:
+            self.begin = self.blue_begin
+            self.goal = self.blue_goal
+
 
     def print(self):
         for cell, neighbours in self.cell.items():
             print(cell, neighbours)
 
     def neighbors(self, location: Location) -> List[Location]:
-        return self.cell[location][1]
+        return self.cell.get(location)[1]
 
     def cell_color(self, location: Location) -> Color:
-        return self.cell[location][0]
+        return self.cell.get(location)[0]
 
     def set_cell_color(self, location: Location, color: Color):
         if self.cell_color(location) == self.player and color != self.player:
