@@ -2,7 +2,7 @@ import gc
 from collections import OrderedDict as odict
 from copy import deepcopy
 from itertools import islice
-
+import time
 from disappointment.path_cost_weights import g_weights
 from disappointment.path_search import *
 
@@ -44,6 +44,8 @@ class Player:
         self.times = []
         self.prevMove: Location = []
         self.currMove: Location = []
+        self.maxMoveTime = 15
+        self.cutOffScore = 1.48
 
     def action(self):
         """
@@ -55,18 +57,18 @@ class Player:
         if self.gameState.player == blue:
             if self.gameState.blue_turn == 0:
                 first_move = True
-                first_location: Location = (4, 4)
+                first_location: Location = (self.n-1, self.n-1)
         elif self.gameState.player == red:
             if self.gameState.red_turn == 0:
                 first_move = True
-                first_location: Location = (1, 3)
+                first_location: Location = (0, self.n-1)
         if first_move:
             location = first_location
         else:
             # t0 = time.clock()
             location, evaluation = self.get_next_move()
             # print("evaluation: ", evaluation, "move: ", location)
-            if evaluation <= 1.5 or not location:
+            if evaluation <= self.cutOffScore or not location:
                 location: Location = self.alpha_beta(self.gameState)[0]
                 print(location)
             # t1 = time.clock()
@@ -168,6 +170,7 @@ class Player:
         capture_potential = 0
         location, location_weight = self.find_path_move(self.gameState)
         location1, location1_weight = self.find_capture_move(self.gameState)
+
         if not location1:
             move = location
             move_eval = location_weight
@@ -186,10 +189,10 @@ class Player:
                 move, move_eval = location, location_weight
             else:
                 move, move_eval = location1, location1_weight
-            print("location ", end=' ')
-            print(location, location_weight, end=' ')
-            print("location1 ", end=' ')
-            print(location1, location1_weight)
+        print("location ", end=' ')
+        print(location, location_weight, end=' ')
+        print("location1 ", end=' ')
+        print(location1, location1_weight)
         print(move, move_eval)
         return move, move_eval
 
@@ -321,7 +324,8 @@ class Player:
                 turn = gameState.red_turn + 1
                 cost_vector = cost * np.ones(gameState.red_turn + 1)
                 path_cost_dif = np.subtract(gameState.red_path_costs[0:gameState.red_turn + 1], cost_vector)
-                path_cost_dif = np.flip(path_cost_dif)
+                path_cost_dif = np.flip(path_cost_dif, 0)
+                # print(path_cost_dif)
             elif gameState.player == blue:
                 turn = gameState.blue_turn + 1
                 cost_vector = cost * np.ones(gameState.blue_turn + 1)
@@ -329,7 +333,8 @@ class Player:
                 # print(path_cost_dif)
                 # print(gameState.blue_path_costs[0:gameState.blue_turn + 1])
                 # print(cost_vector)
-                path_cost_dif = np.flip(path_cost_dif)
+                path_cost_dif = np.flip(path_cost_dif,0)
+                # print(path_cost_dif)
             # path_cost_diff is used to find out how much better we are doing than previous moves
             # we now multiply them with a weight from geometric series 1/k^n and get a dot product
             relative_path_cost = np.dot(path_cost_dif, g_weights[0:turn])
@@ -360,13 +365,14 @@ class Player:
 
     def alpha_beta(self, state: Graph) -> Location:
         gameState = deepcopy(state)
-        move_idx, best_move, move_eval = self.max_value(gameState, np.NINF, np.PINF, 0, [], 0, 1)
+        start_timer = time.process_time()
+        move_idx, best_move, move_eval = self.max_value(gameState, np.NINF, np.PINF, 0, [], 0, 1, start_timer)
         del gameState
         # print("alpha_beta: alpha: ", move_eval, best_move)
         gc.collect()
         return best_move, move_eval
 
-    def max_value(self, state: Graph, alpha, beta, move_index, b_move, curr_depth, max_depth):
+    def max_value(self, state: Graph, alpha, beta, move_index, b_move, curr_depth, max_depth, start_timer):
         # print("curr_depth: ", curr_depth, " max: ")
         # print_board(self.n, state.cell, "max_: " + str(curr_depth), ansi=False)
         # if curr_depth == max_depth:
@@ -412,7 +418,10 @@ class Player:
             if curr_depth == max_depth:
                 min_eval0 = self.terminal_state(gameState0)
             else:
-                _, min_eval0 = self.min_value(gameState0, alpha, beta, tuple(m), curr_depth, max_depth)
+                if time.process_time() - start_timer > self.maxMoveTime:
+                    # trim we reaced the peak
+                    return best_move_index, best_move, alpha
+                _, min_eval0 = self.min_value(gameState0, alpha, beta, tuple(m), curr_depth, max_depth, start_timer)
             del gameState0
             gc.collect()
             if alpha < min_eval0:
@@ -428,7 +437,7 @@ class Player:
 
         return best_move_index, best_move, alpha
 
-    def min_value(self, state: Graph, alpha, beta, move_index, curr_depth, max_depth):
+    def min_value(self, state: Graph, alpha, beta, move_index, curr_depth, max_depth, start_timer):
         # print_board(self.n, state.cell, "min_: " + str(curr_depth), ansi=False)
         #print("curr_depth: min ", curr_depth)
 
@@ -465,9 +474,12 @@ class Player:
             if not m:
                 continue
             # print( curr_depth, "min: ", m)
+            if time.process_time() - start_timer > self.maxMoveTime:
+                # trim we reaced the peak
+                return best_move_index, beta
             gameState0 = deepcopy(state)
             self.apply_move(gameState0, m)
-            _, __, min_eval0 = self.max_value(gameState0, alpha, beta, m, [], curr_depth + 1, max_depth)
+            _, __, min_eval0 = self.max_value(gameState0, alpha, beta, m, [], curr_depth + 1, max_depth, start_timer)
             del gameState0
             gc.collect()
             if beta > min_eval0:
