@@ -1,11 +1,10 @@
 import gc
-import time
 from collections import OrderedDict as odict
 from copy import deepcopy
 from itertools import islice
 
-from path_cost_weights import g_weights
-from path_search import *
+from disappointment.path_cost_weights import g_weights
+from disappointment.path_search import *
 
 """
     new strats to consider 
@@ -52,14 +51,24 @@ class Player:
         of the game, select an action to play.
         """
         self.prevMove = self.currMove
-        if self.gameState.blue_turn == 0:
-            location: Location = (4, 4)
+        first_move = False
+        if self.gameState.player == blue:
+            if self.gameState.blue_turn == 0:
+                first_move = True
+                first_location: Location = (4, 4)
+        elif self.gameState.player == red:
+            if self.gameState.red_turn == 0:
+                first_move = True
+                first_location: Location = (1, 3)
+        if first_move:
+            location = first_location
         else:
-            #t0 = time.clock()
+            # t0 = time.clock()
             location, evaluation = self.get_next_move()
-            # print("evaluation: ", evaluation)
-            if evaluation <= 1.5:
+            # print("evaluation: ", evaluation, "move: ", location)
+            if evaluation <= 1.5 or not location:
                 location: Location = self.alpha_beta(self.gameState)[0]
+                print(location)
             # t1 = time.clock()
             # t = t1 - t0
             # self.timespent += t
@@ -177,11 +186,11 @@ class Player:
                 move, move_eval = location, location_weight
             else:
                 move, move_eval = location1, location1_weight
-        #     print("location ", end=' ')
-        #     print(location, location_weight, end=' ')
-        #     print("location1 ", end=' ')
-        #     print(location1, location1_weight)
-        # print(move, move_eval)
+            print("location ", end=' ')
+            print(location, location_weight, end=' ')
+            print("location1 ", end=' ')
+            print(location1, location1_weight)
+        print(move, move_eval)
         return move, move_eval
 
     def game_state_eval(self, gameState: Graph, from_main: bool):
@@ -228,7 +237,7 @@ class Player:
 
         def is_against_wall_cell(cell):
             against_bound = False
-            if cell[0] == 0 or cell[0] == self.n-1 or cell[1] == 0 or cell[1] == self.n - 1:
+            if cell[0] == 0 or cell[0] == self.n - 1 or cell[1] == 0 or cell[1] == self.n - 1:
                 against_bound = True
             return against_bound
 
@@ -265,7 +274,8 @@ class Player:
             gameStateCopy.set_cell_color(tuple(move), gameStateCopy.player)
             gameStateCopy.nPlayerCells += 1
             self.check_diamond(move[0], move[1], gameStateCopy.player, gameStateCopy)
-            path_progress_contribution, _, __, ___ = self.perform_path_search(gameStateCopy, False, True)
+            path_progress_contribution, _, __, ___ = self.perform_path_search(gameStateCopy, False, True,
+                                                                              from_find_capture_move=True)
 
         # total evaluation of this move
         move_eval = path_progress_contribution + self.capture_sigmoid(nCaptures)
@@ -284,7 +294,7 @@ class Player:
                 cnt += 1
         return cnt
 
-    def perform_path_search(self, gameState: Graph, for_eval, for_path_move):
+    def perform_path_search(self, gameState: Graph, for_eval, for_path_move, from_find_capture_move=False):
         cost = inf
         reachedGoal = False
         path: List[Location] = []
@@ -326,11 +336,17 @@ class Player:
             # print("relative path cost: ", relative_path_cost)
             c1 = 0.4
             c2 = 0
-            relative_path_cost = self.sigmoid(c1, c2, relative_path_cost)*relative_path_cost
+            relative_path_cost = self.sigmoid(c1, c2, relative_path_cost) * relative_path_cost
             # print("relative path cost2: ", relative_path_cost)
             path_progress_contribution = self.sigmoid(c1, c2, relative_path_cost) * relative_path_cost
 
+            if cost <= 1:
+                print(cost, path)
+                path_progress_contribution = 1000
+                if from_find_capture_move:
+                    path_progress_contribution = 500
             # print("path_progess: ", path_progress_contribution)
+
         return path_progress_contribution, path, reachedGoal, cost
 
     def sigmoid(self, c1, c2, x):
@@ -340,13 +356,13 @@ class Player:
         c1 = 0.4
         c2 = 0
         a = 4.1
-        return a*np.tanh(c1*(x-c2))
+        return a * np.tanh(c1 * (x - c2))
 
     def alpha_beta(self, state: Graph) -> Location:
         gameState = deepcopy(state)
         move_idx, best_move, move_eval = self.max_value(gameState, np.NINF, np.PINF, 0, [], 0, 1)
         del gameState
-        #print("alpha_beta: alpha: ", move_eval)
+        # print("alpha_beta: alpha: ", move_eval, best_move)
         gc.collect()
         return best_move, move_eval
 
@@ -365,22 +381,27 @@ class Player:
         idx = 0
         best_move_index = 0
 
-        if state.player == blue:
-            turn = state.blue_turn + 1
-        else:
-            turn = state.red_turn
-        if turn >= self.n:
-            gameState0 = deepcopy(state)
-            cost0, path = self.game_state_eval(gameState0, False)
-            if cost0 <= 1:
-                #print(cost0, "moves to play: ", path)
-                return best_move_index, path[0], alpha
-            gameState0.flip_player_color()
-            cost1, path = self.game_state_eval(gameState0, False)
-            # enemy is about to finish their path, go block it
-            if cost1 <= 1:
-                #print(cost0, "moves to play: ", path)
-                return best_move_index, path[0], alpha
+        if curr_depth == 0:
+            if state.player == blue:
+                turn = state.blue_turn + 1
+            else:
+                turn = state.red_turn
+            if turn >= self.n:
+                gameState0 = deepcopy(state)
+                cost0, path = self.game_state_eval(gameState0, False)
+                if cost0 <= 1:
+                    # print(cost0, "my moves to play: ", path)
+                    if path[0]:
+                        return best_move_index, path[0], alpha
+                gameState0.flip_player_color()
+                cost1, path = self.game_state_eval(gameState0, False)
+                # enemy is about to finish their path, go block it
+                if cost1 <= 1:
+                    # print("depth: ", curr_depth, cost1, "enemy moves to play: ", path, path[0])
+                    if path[0]:
+                        return best_move_index, path[0], alpha
+                del gameState0
+                gc.collect()
 
         for m in moves:
             if not m:
@@ -399,6 +420,7 @@ class Player:
                 best_move_index = idx
                 if curr_depth == 0:
                     best_move = next(islice(moves.items(), best_move_index, best_move_index + 1, 1))[0]
+                    # print("best move: ", best_move)
             idx += 1
             if alpha >= beta:
                 # pruning we dont look at other nodes
@@ -408,25 +430,24 @@ class Player:
 
     def min_value(self, state: Graph, alpha, beta, move_index, curr_depth, max_depth):
         # print_board(self.n, state.cell, "min_: " + str(curr_depth), ansi=False)
-        # print("curr_depth: min ", curr_depth)
+        #print("curr_depth: min ", curr_depth)
 
-        if state.player == blue:
-            turn = state.blue_turn + 1
-        else:
-            turn = state.red_turn
-        if turn >= self.n:
-            gameState0 = deepcopy(state)
-            cost0, path = self.game_state_eval(gameState0, False)
-            if cost0 <= 1:
-                #print(cost0, "moves to play: ", path)
-                return 0, alpha + 0.5
-            gameState0.flip_player_color()
-            cost1, path = self.game_state_eval(gameState0, False)
-            # enemy is about to finish their path, go block it
-            if cost1 <= 1:
-                #print(cost0, "moves to play: ", path)
-                return 0, alpha + 0.5
-
+        # if state.player == blue:
+        #     turn = state.blue_turn + 1
+        # else:
+        #     turn = state.red_turn
+        # if turn >= self.n:
+        #     gameState0 = deepcopy(state)
+        #     cost0, path = self.game_state_eval(gameState0, False)
+        #     if cost0 <= 1:
+        #         #print(cost0, "moves to play: ", path)
+        #         return 0, alpha + 0.5
+        #     gameState0.flip_player_color()
+        #     cost1, path = self.game_state_eval(gameState0, False)
+        #     # enemy is about to finish their path, go block it
+        #     if cost1 <= 1:
+        #         #print(cost0, "moves to play: ", path)
+        #         return 0, alpha + 0.5
 
         if curr_depth == max_depth:
             return move_index, self.mini_max_eval(state)[0]
@@ -472,20 +493,24 @@ class Player:
         mycost = cost0
         del gameState
         gc.collect()
+        some_large_number = 1000
+        cost1 = some_large_number if cost1 == inf else cost1
+        cost0 = some_large_number if cost0 == inf else cost0
+
         if self.gameState.player == state.player:
             state_eval = cost1 - cost0
-            if cost0 == 1 and cost1 == inf:
-                state_eval = inf
+            if cost0 == 1 and cost1 == some_large_number:
+                state_eval = some_large_number
             elif cost1 == 1:
-                state_eval = -inf
+                state_eval = -some_large_number
         else:
             mycost = cost1
             state_eval = cost0 - cost1
             if cost0 == 1:
-                state_eval = -inf
+                state_eval = -some_large_number
             elif cost1 == 1 and cost0 == inf:
-                #print(cost1, cost0)
-                state_eval = inf
+                # print(cost1, cost0)
+                state_eval = some_large_number
             # elif cost1 == 1:
             #     state_eval = 1000
         # print("state_eval: ", state_eval)
@@ -504,7 +529,7 @@ class Player:
         self.get_neighbour_cells(state, state.get_enemy_cells(), moves)
         # if state.player == self.gameState.player:
         #     self.add_bounds(state, state.get_player_bounds(), moves)
-            # print(moves)
+        # print(moves)
         # self.add_bounds(state, state.get_enemy_bounds(), moves)
         # self.add_bounds(state, state.get_player_bounds(), moves)
 
