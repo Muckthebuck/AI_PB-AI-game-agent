@@ -1,6 +1,6 @@
 from typing import Dict, List, Tuple, TypeVar, Optional
 import random
-import  numpy as np
+import numpy as np
 from numpy import inf
 
 T = TypeVar('T')
@@ -20,7 +20,6 @@ class Graph:
         self.player = player
         self.enemy = red if player == blue else blue
         self.cell: Dict[Location, List[Color, List[Location]]] = {}
-        self.playerCell: Dict[Location, Color] = {}
         self.nlinkedPath = 0
         self.prevLinkedPath = 0
         self.blue_turn = 0
@@ -34,6 +33,8 @@ class Graph:
         self.red_goal: List[Location] = []
         self.blue_begin: List[Location] = []
         self.blue_goal: List[Location] = []
+        self.red_cells: Dict[Location, Color] = {}
+        self.blue_cells: Dict[Location, Color] = {}
         self.red_path_costs = np.zeros(self.maxTurns)
         self.blue_path_costs = np.zeros(self.maxTurns)
         moves = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
@@ -84,7 +85,6 @@ class Graph:
             self.begin = self.blue_begin
             self.goal = self.blue_goal
 
-
     def print(self):
         for cell, neighbours in self.cell.items():
             print(cell, neighbours)
@@ -98,14 +98,74 @@ class Graph:
     def set_cell_color(self, location: Location, color: Color):
         if self.cell_color(location) == self.player and color != self.player:
             # if the current id is no longer a player colour
-            self.playerCell.pop(location)
+            if self.player == blue:
+                self.blue_cells.pop(location)
+            elif self.player == red:
+                self.red_cells.pop(location)
         elif color == self.player:
             # if the current id will be a player
-            self.playerCell.update({location: color})
+            if self.player == blue:
+                self.blue_cells.update({location: color})
+            elif self.player == red:
+                self.red_cells.update({location: color})
+        elif self.cell_color(location) == self.enemy and color != self.enemy:
+            # if the current id is no longer an enemy colour
+            if self.enemy == blue:
+                self.blue_cells.pop(location)
+            elif self.enemy == red:
+                self.red_cells.pop(location)
+        elif color == self.enemy:
+            # if the current id will be an enemy
+            if self.enemy == blue:
+                self.blue_cells.update({location: color})
+            elif self.enemy == red:
+                self.red_cells.update({location: color})
         self.cell[location][0] = color
+
+    def get_player_cells(self) -> Dict[Location, Color]:
+        if self.player == blue:
+            return self.blue_cells
+        elif self.player == red:
+            return self.red_cells
+
+    def get_enemy_cells(self) -> Dict[Location, Color]:
+        if self.player == blue:
+            return self.red_cells
+        elif self.player == red:
+            return self.blue_cells
+
+    def get_player_bounds(self) -> Tuple[List[Location], List[Location]]:
+        if self.player == blue:
+            return self.blue_begin, self.blue_goal
+        elif self.player == red:
+            return self.red_begin, self.red_goal
+
+    def get_enemy_bounds(self) -> Tuple[List[Location], List[Location]]:
+        if self.player == red:
+            return self.blue_begin, self.blue_goal
+        elif self.player == blue:
+            return self.red_begin, self.red_goal
 
     def cost(self, src: Location, dst: Location) -> float:
         pass
+
+    def reconstruct_path(self, came_from: Dict[Location, Location],
+                         start: Location, goal: Location) -> List[Location]:
+        """
+            adapted from https://www.redblobgames.com/pathfinding/a-star/implementation.html
+        """
+        current: Location = goal
+        path: List[Location] = []
+        while current != start:  # note: this will fail if no path found
+            if self.cell_color(current) != empty:
+                current = came_from[current]
+                continue
+            path.append(current)
+            current = came_from[current]
+        if self.cell_color(start) == empty:
+            path.append(start)
+        path.reverse()  # optional
+        return path
 
 
 class PriorityQueue:
@@ -168,6 +228,7 @@ def reconstruct_path(came_from: Dict[Location, Location],
     return path
 
 
+
 def find_dist(H1, H2):
     """
     # adapted from redblobgames.com/grids/hexagon
@@ -212,7 +273,7 @@ def a_star_search(graph: Graph, start: Location, goal: List[Location]):
     came_from: Dict[Location, Optional[Location]] = {}
     cost_so_far: Dict[Location, float] = {}
     came_from[start] = None
-    cost_so_far[start] = 0
+    cost_so_far[start] = 0 if graph.cell_color(start) == graph.player else 1
     reached_goal = False
     endGoal: Location = []
     while not frontier.empty():
