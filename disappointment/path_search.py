@@ -34,8 +34,8 @@ class Graph:
         self.blue_goal: List[Location] = []
         self.red_cells: Dict[Location, Color] = {}
         self.blue_cells: Dict[Location, Color] = {}
-        self.red_path_costs = np.zeros(self.maxTurns)
-        self.blue_path_costs = np.zeros(self.maxTurns)
+        self.red_path_costs = n*np.ones(self.maxTurns)
+        self.blue_path_costs = n*np.ones(self.maxTurns)
         moves = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
         for i in range(0, n):
             for j in range(0, n):
