@@ -44,20 +44,24 @@ class Player:
         self.times = []
         self.prevMove: Location = []
         self.currMove: Location = []
-        self.maxMoveTime = 15
+        self.maxMoveTime = n         #15
         self.cutOffScore = 1.48
-
+        self.total_time_spent = 0
+        self.maxtime = n*n
+        self.time_threshold = self.maxtime - self.maxMoveTime
+        self.max_depth = 1
     def action(self):
         """
         Called at the beginning of your turn. Based on the current state
         of the game, select an action to play.
         """
+        start = time.process_time()
         self.prevMove = self.currMove
         first_move = False
         if self.gameState.player == blue:
             if self.gameState.blue_turn == 0:
                 first_move = True
-                first_location: Location = (self.n-1, self.n-1)
+                first_location: Location = ((self.n-1)/2, (self.n-1)/2)
         elif self.gameState.player == red:
             if self.gameState.red_turn == 0:
                 first_move = True
@@ -68,7 +72,7 @@ class Player:
             # t0 = time.clock()
             location, evaluation = self.get_next_move()
             # print("evaluation: ", evaluation, "move: ", location)
-            if evaluation <= self.cutOffScore or not location:
+            if (evaluation <= self.cutOffScore or not location) and self.total_time_spent <= self.time_threshold:
                 location: Location = self.alpha_beta(self.gameState)[0]
                 print(location)
             # t1 = time.clock()
@@ -85,6 +89,8 @@ class Player:
         self.game_state_eval(self.gameState, True)
         # print("end action")
         self.increment_turn(self.gameState, self.gameState.player)
+        end = time.process_time()
+        self.total_time_spent += end - start
         return (str("PLACE"), int(location[0]), int(location[1]))
 
     def turn(self, player, action):
@@ -366,7 +372,7 @@ class Player:
     def alpha_beta(self, state: Graph) -> Location:
         gameState = deepcopy(state)
         start_timer = time.process_time()
-        move_idx, best_move, move_eval = self.max_value(gameState, np.NINF, np.PINF, 0, [], 0, 1, start_timer)
+        move_idx, best_move, move_eval = self.max_value(gameState, np.NINF, np.PINF, 0, [], 0, self.max_depth, start_timer)
         del gameState
         # print("alpha_beta: alpha: ", move_eval, best_move)
         gc.collect()
