@@ -5,7 +5,6 @@ from itertools import islice
 import time
 from disappointment.path_cost_weights import g_weights
 from disappointment.path_search import *
-from disappointment.util import print_board
 """
     new strats to consider 
     - number of pieces to check which player is dominant on the board
@@ -44,14 +43,16 @@ class Player:
         self.times = []
         self.prevMove: Location = []
         self.currMove: Location = []
-        self.maxMoveTime = n  # 15
+        self.maxMoveTime = n + n//2 # 15
         self.cutOffScore = 1.48
         self.total_time_spent = 0
         self.maxtime = n * n
+        self.maxPlaces = n * n
         self.time_threshold = self.maxtime - self.maxMoveTime
         self.max_depth = 1
         self.red_first_move = []
         self.first_blue_move = []
+        self.increment_minimax_depth_p = 17
 
     def action(self):
         """
@@ -79,7 +80,7 @@ class Player:
             # t0 = time.clock()
             location, evaluation = self.get_next_move()
             # print("evaluation: ", evaluation, "move: ", location)
-            if (evaluation <= self.cutOffScore or not location) and self.total_time_spent <= self.time_threshold:
+            if (evaluation <= self.cutOffScore or not location) and self.total_time_spent < self.time_threshold:
                 location: Location = self.alpha_beta(self.gameState)[0]
                 print(location)
             # t1 = time.clock()
@@ -150,13 +151,15 @@ class Player:
         return
 
     def increment_turn(self, gameSate: Graph, player):
+        # total number of pieces on the board
+        n_pieces = len(gameSate.red_cells) + len(gameSate.blue_cells)
         if player == red:
             gameSate.red_turn += 1
-            if self.gameState.player == red and gameSate.red_turn%15:
+            if self.gameState.player == red and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
                 self.max_depth += 1
         else:
             gameSate.blue_turn += 1
-            if self.gameState.player == blue and gameSate.blue_turn % 15:
+            if self.gameState.player == blue and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
                 self.max_depth += 1
 
     def find_first_two_blue_move(self):
@@ -314,11 +317,14 @@ class Player:
                 against_bound = True
             return against_bound
 
+        def_move = []
+        def_move_eval = 3
         for cell in gameState.get_player_cells():
             r = cell[0]
             c = cell[1]
             cnt = 0
             # print("capture cells; ", r, c)
+
             for cells in self.generate_valid_diamonds(r, c):
                 up = gameState.cell_color(cells[0])
                 down = gameState.cell_color(cells[1])
@@ -328,9 +334,11 @@ class Player:
                 if up == down and left != right and up != left and up != empty:
                     # defensive move
                     if left == empty and is_against_wall_cell(cells[2]):
-                        return cells[2], 3
+                        def_move = cells[2]
+                        # return cells[2], 3
                     elif right == empty and is_against_wall_cell(cells[3]):
-                        return cells[3], 3
+                        def_move = cells[3]
+                        # return cells[3], 3
 
                 if down == empty and left == right and up != left and left != empty and up != down:
                     # print("cells qualified", cells[1])
@@ -352,6 +360,9 @@ class Player:
             # print("move colour: ", self.gameState.cell_color(move))
         # total evaluation of this move
         move_eval = path_progress_contribution + self.capture_tanh(nCaptures)
+        if move_eval < self.cutOffScore and def_move:
+            move_eval = def_move_eval
+            move = def_move
         return move, move_eval
 
     def move_capture_potential(self, location: Location, gameState: Graph):
