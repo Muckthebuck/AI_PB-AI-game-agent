@@ -8,7 +8,6 @@ import sys
 import time
 import logging
 import collections
-import pandas as pd
 
 from itertools import islice
 
@@ -329,31 +328,17 @@ class Game:
             if min(axis_vals) == 0 and max(axis_vals) == self.board.n - 1:
                 self.result = "winner: " + player
                 self.result_cluster = set(reachable)
-                if player == 'blue':
-                    result_table = pd.read_csv("result.csv",index_col=0)
-                    result_table.loc[0,'Blue'] = result_table.loc[0,'Blue'] + 1
-                    result_table.to_csv("result.csv")
-                elif player == 'red':
-                    result_table = pd.read_csv("result.csv",index_col=0)
-                    result_table.loc[0,'Red']= result_table.loc[0,'Red'] + 1
-                    result_table.to_csv("result.csv")
                 return
 
         # Condition 2: the same state has occurred too many times (draw)
         if self.history[self.board.digest()] >= _MAX_REPEAT_STATES:
             self.result = f"draw: same game state occurred \
                 {_MAX_REPEAT_STATES} times"
-            result_table = pd.read_csv("result.csv",index_col=0)
-            result_table.loc[0,'Draw']= result_table.loc[0,'Draw'] + 1
-            result_table.to_csv("result.csv")
             return
 
         # Condition 3: there have been too many turns in the game (draw)
         if self.nturns >= _MAX_TURNS:
             self.result = "draw: maximum number of turns reached"
-            result_table = pd.read_csv("result.csv",index_col=0)
-            result_table.loc[0,'Draw']= result_table.loc[0,'Draw'] + 1
-            result_table.to_csv("result.csv")
             return
 
         # No end conditions met, game continues

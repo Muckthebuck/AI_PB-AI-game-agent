@@ -337,6 +337,7 @@ class Game:
                     result_table = pd.read_csv("result.csv",index_col=0)
                     result_table.loc[0,'Red']= result_table.loc[0,'Red'] + 1
                     result_table.to_csv("result.csv")
+            
                 return
 
         # Condition 2: the same state has occurred too many times (draw)
