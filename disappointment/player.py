@@ -5,7 +5,7 @@ from itertools import islice
 import time
 from disappointment.path_cost_weights import g_weights
 from disappointment.path_search import *
-from disappointment.util import print_board
+import random
 """
     new strats to consider 
     - number of pieces to check which player is dominant on the board
@@ -13,18 +13,49 @@ from disappointment.util import print_board
 
 """
 
-POSSIBLE_DIAMONDS = [[(2, -1), (0, 0), (1, -1), (1, 0)], [(0, 0), (-2, 1), (-1, 0), (-1, 1)],
-                     [(1, -1), (-1, 0), (0, -1), (0, 0)], [(1, 0), (-1, 1), (0, 1), (0, 0)],
-                     [(1, 0), (0, 0), (1, -1), (0, 1)], [(0, 0), (-1, 0), (0, -1), (-1, 1)],
-                     [(1, -1), (0, -1), (1, -2), (0, 0)], [(0, 1), (-1, 1), (0, 0), (-1, 2)],
-                     [(1, -1), (0, 0), (0, -1), (1, 0)], [(0, 0), (-1, 1), (-1, 0), (0, 1)],
-                     [(0, -1), (-1, 0), (-1, -1), (0, 0)], [(1, 0), (0, 1), (0, 0), (1, 1)]]
-POSSIBLE_DIAMONDS2 = [[(0, 0), (2, -1), (1, -1), (1, 0)], [(0, 0), (-2, 1), (-1, 0), (-1, 1)],
-                      [(0, 0), (0, -1), (1, -1), (-1, 0)], [(0, 0), (0, 1), (1, 0), (-1, 1)],
-                      [(0, 0), (1, 0), (1, -1), (0, 1)], [(0, 0), (-1, 0), (0, -1), (-1, 1)],
-                      [(0, 0), (1, -2), (1, -1), (0, -1)], [(0, 0), (-1, 2), (0, 1), (-1, 1)],
-                      [(0, 0), (1, -1), (0, -1), (1, 0)], [(0, 0), (-1, 1), (-1, 0), (0, 1)],
-                      [(0, 0), (-1, -1), (0, -1), (-1, 0)], [(0, 0), (1, 1), (1, 0), (0, 1)]]
+
+POSSIBLE_DIAMONDS = [[(0, 0), (2, -1), (1, -1), (1, 0)], [(0, 0), (-2, 1), (-1, 0), (-1, 1)],
+                     [(0, 0), (0, -1), (1, -1), (-1, 0)], [(0, 0), (0, 1), (1, 0), (-1, 1)],
+                     [(0, 0), (1, 0), (1, -1), (0, 1)], [(0, 0), (-1, 0), (0, -1), (-1, 1)],
+                     [(0, 0), (1, -2), (1, -1), (0, -1)], [(0, 0), (-1, 2), (0, 1), (-1, 1)],
+                     [(0, 0), (1, -1), (0, -1), (1, 0)], [(0, 0), (-1, 1), (-1, 0), (0, 1)],
+                     [(0, 0), (-1, -1), (0, -1), (-1, 0)], [(0, 0), (1, 1), (1, 0), (0, 1)]]
+
+RED_FIRST_MOVES = {
+    3: [(0, 2), (1, 2), (1, 0), (1, 1), (2, 0)],
+    4: [(0, 3), (1, 2), (2, 1), (3, 0)],
+    5: [(0, 4), (1, 4), (1, 3), (1, 2), (1, 1), (2, 1), (3, 1), (3, 0), (4, 0), (3, 2), (3, 3), (2, 3), (1, 3)],
+    6: [(0, 5), (1, 4), (1, 5), (1, 3), (1, 2), (1, 1), (2, 0), (3, 0), (4, 0), (5, 0), (4, 1), (4, 2), (4, 3), (4, 4),
+        (3, 5), (2, 5)],
+    7: [(0, 6), (1, 5), (1, 4), (1, 2), (2, 1), (3, 0), (3, 1), (4, 1), (5, 0), (5, 1), (6, 0), (5, 2), (5, 4), (4, 5), (3, 6)],
+    8: [(0, 7), (1, 6), (1, 7), (2, 6), (2, 1), (3, 1), (4, 0), (4, 1), (5, 1), (6, 0),
+        (6, 1), (7, 0), (5, 6), (4, 6), (3, 6), (3, 7)],
+    9: [(0, 8), (1, 8), (1, 7), (2, 7), (3, 7), (3, 8), (4, 7), (4, 8), (5, 7), (5, 8), (6, 7), (7, 6), (7, 7), (7, 8),
+        (1, 0), (1, 1), (1, 2), (2, 1), (3, 0), (4, 0), (5, 0), (3, 1), (4, 1), (5, 1), (6, 1), (7, 0), (7, 1), (8, 0)],
+    10: [(0, 9), (1, 9), (1, 8), (2, 8), (3, 8), (4, 8), (5, 8), (6, 8), (7, 8), (8, 7), (8, 8), (8, 9), (6, 9), (5, 9),
+         (4, 9), (3, 9), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (3, 1), (4, 0), (4, 1), (5, 0), (5, 1), (6, 0), (6, 1),
+         (7, 1), (8, 1), (8, 0), (9, 0)],
+    11: [(0, 10), (1, 10), (1, 9), (2, 9), (3, 9), (3, 10), (4, 9), (4, 10), (5, 10), (7, 10), (8, 10), (9, 10), (5, 9),
+         (6, 9), (7, 9), (8, 9), (9, 9), (9, 8), (10, 0), (9, 0), (9, 1), (8, 1), (7, 0), (6, 0), (5, 0), (7, 1),
+         (6, 1), (5, 1), (4, 1), (2, 0), (1, 0), (3, 1), (2, 1), (1, 1), (1, 2), (3, 0)],
+    12: [(0, 11), (1, 10), (2, 10), (1, 11), (11, 0), (10, 0), (10, 1), (9, 1), (8, 0), (7, 0), (6, 0), (4, 0), (3, 0),
+         (1, 0), (1, 1), (1, 2), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (10, 2), (1, 9), (3, 11),
+         (4, 11), (5, 11), (7, 11), (8, 11), (10, 11), (10, 10), (10, 9), (9, 10), (8, 10), (7, 10), (6, 10), (5, 10),
+         (4, 10), (3, 10)],
+    13: [(0, 12), (1, 11), (1, 12), (2, 11), (12, 0), (11, 0), (11, 1), (10, 1), (3, 12), (4, 12), (5, 12), (7, 12),
+         (8, 12), (9, 12), (11, 12), (11, 11), (11, 10), (10, 11), (9, 11), (8, 11), (7, 11), (6, 11), (5, 11), (4, 11),
+         (3, 11), (9, 0), (8, 0), (7, 0), (5, 0), (4, 0), (3, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 1), (4, 1),
+         (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (11, 2), (1, 10)],
+    14: [(0, 13), (1, 12), (2, 12), (1, 13), (3, 13), (4, 13), (5, 13), (9, 13), (8, 13), (11, 13), (12, 13), (12, 12),
+         (12, 11), (12, 1), (11, 1), (13, 0), (12, 0), (12, 2), (1, 11), (9, 0), (10, 0), (8, 0), (6, 13), (7, 0),
+         (5, 0), (4, 0), (2, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1),
+         (10, 1)],
+    15: [(14, 0), (0, 14), (1, 13), (2, 13), (1, 14), (3, 14), (4, 14), (5, 14), (6, 14), (10, 0), (11, 0), (13, 0),
+         (13, 1), (12, 1), (9, 0), (8, 0), (6, 0), (5, 0), (4, 0), (8, 14), (9, 14), (10, 14), (12, 14), (13, 14),
+         (2, 0), (1, 0), (1, 1), (1, 2), (13, 13), (11, 1), (10, 1), (9, 1), (8, 1), (6, 1), (7, 1), (5, 1), (4, 1),
+         (3, 1), (2, 1), (13, 2), (13, 12), (12, 13), (11, 13), (10, 13), (9, 13), (7, 13), (8, 13), (6, 13), (5, 13),
+         (4, 13), (3, 13), (13, 11), (1, 3), (1, 12)]
+}
 
 
 class Player:
@@ -44,14 +75,16 @@ class Player:
         self.times = []
         self.prevMove: Location = []
         self.currMove: Location = []
-        self.maxMoveTime = n  # 15
+        self.maxMoveTime = n + n//2 # 15
         self.cutOffScore = 1.48
         self.total_time_spent = 0
         self.maxtime = n * n
+        self.maxPlaces = n * n
         self.time_threshold = self.maxtime - self.maxMoveTime
         self.max_depth = 1
         self.red_first_move = []
         self.first_blue_move = []
+        self.increment_minimax_depth_p = 17
 
     def action(self):
         """
@@ -68,7 +101,7 @@ class Player:
         elif self.gameState.player == red:
             if self.gameState.red_turn == 0:
                 first_move = True
-                first_location: Location = (0, self.n - 1)
+                first_location: Location = random.choice(RED_FIRST_MOVES[self.n])
                 self.red_first_move = first_location
         if first_move:
             location = first_location
@@ -79,7 +112,7 @@ class Player:
             # t0 = time.clock()
             location, evaluation = self.get_next_move()
             # print("evaluation: ", evaluation, "move: ", location)
-            if (evaluation <= self.cutOffScore or not location) and self.total_time_spent <= self.time_threshold:
+            if (evaluation <= self.cutOffScore or not location) and self.total_time_spent < self.time_threshold:
                 location: Location = self.alpha_beta(self.gameState)[0]
                 print(location)
             # t1 = time.clock()
@@ -150,13 +183,15 @@ class Player:
         return
 
     def increment_turn(self, gameSate: Graph, player):
+        # total number of pieces on the board
+        n_pieces = len(gameSate.red_cells) + len(gameSate.blue_cells)
         if player == red:
             gameSate.red_turn += 1
-            if self.gameState.player == red and gameSate.red_turn%15:
+            if self.gameState.player == red and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
                 self.max_depth += 1
         else:
             gameSate.blue_turn += 1
-            if self.gameState.player == blue and gameSate.blue_turn % 15:
+            if self.gameState.player == blue and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
                 self.max_depth += 1
 
     def find_first_two_blue_move(self):
@@ -189,7 +224,7 @@ class Player:
 
     def generate_valid_diamonds(self, r, c):
         valid_diamonds = []
-        for cells in POSSIBLE_DIAMONDS2:
+        for cells in POSSIBLE_DIAMONDS:
             valid_diamond = []
             invalid = False
             for (x, y) in cells:
@@ -314,11 +349,14 @@ class Player:
                 against_bound = True
             return against_bound
 
+        def_move = []
+        def_move_eval = 3
         for cell in gameState.get_player_cells():
             r = cell[0]
             c = cell[1]
             cnt = 0
             # print("capture cells; ", r, c)
+
             for cells in self.generate_valid_diamonds(r, c):
                 up = gameState.cell_color(cells[0])
                 down = gameState.cell_color(cells[1])
@@ -328,9 +366,11 @@ class Player:
                 if up == down and left != right and up != left and up != empty:
                     # defensive move
                     if left == empty and is_against_wall_cell(cells[2]):
-                        return cells[2], 3
+                        def_move = cells[2]
+                        # return cells[2], 3
                     elif right == empty and is_against_wall_cell(cells[3]):
-                        return cells[3], 3
+                        def_move = cells[3]
+                        # return cells[3], 3
 
                 if down == empty and left == right and up != left and left != empty and up != down:
                     # print("cells qualified", cells[1])
@@ -352,6 +392,9 @@ class Player:
             # print("move colour: ", self.gameState.cell_color(move))
         # total evaluation of this move
         move_eval = path_progress_contribution + self.capture_tanh(nCaptures)
+        if move_eval < self.cutOffScore and def_move:
+            move_eval = def_move_eval
+            move = def_move
         return move, move_eval
 
     def move_capture_potential(self, location: Location, gameState: Graph):
