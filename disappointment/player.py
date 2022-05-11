@@ -671,8 +671,8 @@ class Player:
         some_large_number = 1000
         cost1 = some_large_number if cost1 == inf else cost1
         cost0 = some_large_number if cost0 == inf else cost0
-
         if self.gameState.player == state.player:
+            # print("minimax: ",cost0, cost1)
             state_eval = cost1 - cost0
             if state.player == red:
                 state_eval += len(state.red_cells) - len(state.blue_cells)
@@ -682,6 +682,7 @@ class Player:
                 state_eval = some_large_number
             elif cost1 == 1:
                 state_eval = -some_large_number
+            # print(state_eval)
         else:
             mycost = cost1
             state_eval = cost0 - cost1
