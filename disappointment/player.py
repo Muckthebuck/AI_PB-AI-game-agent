@@ -114,10 +114,10 @@ class Player:
             location, evaluation = self.get_next_move()
             # print("evaluation: ", evaluation, "move: ", location)
             if (evaluation <= self.cutOffScore or not location) and self.total_time_spent < self.time_threshold:
-                location: Location = self.alpha_beta(self.gameState)[0]
+                location1: Location = self.alpha_beta(self.gameState)[0]
                 # print("minimax: ",location, self.move_eval(self.gameState, location))
-                # if self.move_eval(self.gameState, location) >= evaluation:
-                #     location = location1
+                if self.move_eval(self.gameState, location) >= evaluation:
+                    location = location1
 
                 # print(location)
             # t1 = time.clock()
