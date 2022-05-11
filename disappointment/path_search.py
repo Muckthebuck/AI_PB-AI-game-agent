@@ -155,15 +155,25 @@ class Graph:
         """
         current: Location = goal
         path: List[Location] = []
+        has_start = False
+        begin_cells = self.red_begin if self.player == red else self.blue_begin
+        # print("full path",reconstruct_path(came_from,
+        # start, goal))
+        # print("original path: ", end=" ")
         while current != start:  # note: this will fail if no path found
+            # print(current, end=" ")
+            if (not has_start) and current in begin_cells:
+                has_start = True
             if self.cell_color(current) != empty:
                 current = came_from[current]
                 continue
             path.append(current)
             current = came_from[current]
-        if self.cell_color(start) == empty:
+        if self.cell_color(start) == empty and not has_start:
             path.append(start)
         path.reverse()  # optional
+        # print(" ")
+
         return path
 
 

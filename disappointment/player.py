@@ -14,6 +14,7 @@ import random
 """
 
 
+
 POSSIBLE_DIAMONDS = [[(0, 0), (2, -1), (1, -1), (1, 0)], [(0, 0), (-2, 1), (-1, 0), (-1, 1)],
                      [(0, 0), (0, -1), (1, -1), (-1, 0)], [(0, 0), (0, 1), (1, 0), (-1, 1)],
                      [(0, 0), (1, 0), (1, -1), (0, 1)], [(0, 0), (-1, 0), (0, -1), (-1, 1)],
@@ -114,7 +115,11 @@ class Player:
             # print("evaluation: ", evaluation, "move: ", location)
             if (evaluation <= self.cutOffScore or not location) and self.total_time_spent < self.time_threshold:
                 location: Location = self.alpha_beta(self.gameState)[0]
-                print(location)
+                # print("minimax: ",location, self.move_eval(self.gameState, location))
+                # if self.move_eval(self.gameState, location) >= evaluation:
+                #     location = location1
+
+                # print(location)
             # t1 = time.clock()
             # t = t1 - t0
             # self.timespent += t
@@ -288,6 +293,19 @@ class Player:
                 gameState.blue_path_costs[gameState.blue_turn] = cost
             return cost, path
 
+    def move_eval(self, gameState: Graph, move: Location):
+        gameStateCopy = deepcopy(gameState)
+        gameStateCopy.set_cell_color(tuple(move), gameStateCopy.player)
+        gameStateCopy.nPlayerCells += 1
+        self.check_diamond(move[0], move[1], gameStateCopy.player, gameStateCopy)
+        path_progress_contribution, _, __, ___ = self.perform_path_search(gameStateCopy, False, True,
+                                                                          from_find_capture_move=True)
+        # print("move colour: ", self.gameState.cell_color(move))
+        # total evaluation of this move
+
+        move_eval = path_progress_contribution + self.capture_tanh(self.move_capture_potential(move, gameState))
+        return move_eval
+
     def find_path_move(self, gameState: Graph):
         path_progress_contribution, path, reachedGoal, _ = self.perform_path_search(gameState, False, True)
         # print(path)
@@ -308,15 +326,15 @@ class Player:
         path_progress_contribution1, path, reachedGoal, _ = self.perform_path_search(gameState0, False, True)
         move1 = self.get_move_from_path(reachedGoal, path, gameState0)
         # print(path_progress_contribution1)
-        gameState0.set_cell_color(move, gameState0.player)
+        gameState0.set_cell_color(move1, gameState0.player)
         self.check_diamond(move1[0], move1[1], gameState0.player, gameState0)
 
         __, ___, ____, applied_cost = self.perform_path_search(gameState0, False, True)
         del gameState0
         gc.collect()
         if applied_cost == 0:
-            return move, 1000
-        # print(move)
+            return move1, 1000
+        # print(move, move1)
         move_eval = path_progress_contribution
         if move == move1:
             move_eval = path_progress_contribution+path_progress_contribution1
@@ -415,6 +433,7 @@ class Player:
         reachedGoal = False
         path: List[Location] = []
         path_progress_contribution = 0
+        # print(gameState.begin)
         for start in gameState.begin:
             if gameState.cell_color(start) == gameState.enemy:
                 continue
@@ -423,10 +442,12 @@ class Player:
                 continue
             else:
                 reachedGoal = True
-                newcost = max(cost_so_far[endGoal], len(path))
+                # print(cost_so_far[endGoal],len(path))
+                newcost = cost_so_far[endGoal]
+
                 # if self.gameState.player == blue and for_path_move:
-                #     # print(len(path), path)
-                if newcost < cost or len(path) == 1:
+                    # print(len(path), path)
+                if newcost+1 < cost:
                     cost = newcost
                     if not for_eval or for_path_move:
                         path = gameState.reconstruct_path(came_from, start, endGoal)
@@ -484,7 +505,7 @@ class Player:
                 if from_find_capture_move:
                     path_progress_contribution = 500
             # print("path_progess: ", path_progress_contribution)
-
+            # print(path)
         return path_progress_contribution, path, reachedGoal, cost
 
     def sigmoid(self, c1, c2, x):
@@ -646,6 +667,10 @@ class Player:
 
         if self.gameState.player == state.player:
             state_eval = cost1 - cost0
+            if state.player == red:
+                state_eval += len(state.red_cells) - len(state.blue_cells)
+            else:
+                state_eval += len(state.blue_cells) - len(state.red_cells)
             if cost0 == 1 and cost1 == some_large_number:
                 state_eval = some_large_number
             elif cost1 == 1:
@@ -653,6 +678,10 @@ class Player:
         else:
             mycost = cost1
             state_eval = cost0 - cost1
+            if state.player == red:
+                state_eval += len(state.red_cells) - len(state.blue_cells)
+            else:
+                state_eval += len(state.blue_cells) - len(state.red_cells)
             if cost0 == 1:
                 state_eval = -some_large_number
             elif cost1 == 1 and cost0 == inf:
