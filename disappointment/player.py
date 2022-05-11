@@ -83,9 +83,11 @@ class Player:
         self.maxPlaces = n * n
         self.time_threshold = self.maxtime - self.maxMoveTime
         self.max_depth = 1
+        self.increase_depth = False
         self.red_first_move = []
         self.first_blue_move = []
         self.increment_minimax_depth_p = 17
+        self.maxpieces =0
 
     def action(self):
         """
@@ -190,14 +192,19 @@ class Player:
     def increment_turn(self, gameSate: Graph, player):
         # total number of pieces on the board
         n_pieces = len(gameSate.red_cells) + len(gameSate.blue_cells)
+        if n_pieces > self.maxpieces:
+            self.maxpieces = n_pieces
+            self.increase_depth = True
         if player == red:
             gameSate.red_turn += 1
-            if self.gameState.player == red and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
+            if self.gameState.player == red and n_pieces != 0 and self.maxpieces % self.increment_minimax_depth_p == 0 and self.increase_depth:
                 self.max_depth += 1
+                self.increase_depth = False
         else:
             gameSate.blue_turn += 1
-            if self.gameState.player == blue and n_pieces != 0 and n_pieces % self.increment_minimax_depth_p:
+            if self.gameState.player == blue and n_pieces != 0 and self.maxpieces % self.increment_minimax_depth_p == 0 and self.increase_depth:
                 self.max_depth += 1
+                self.increase_depth = False
 
     def find_first_two_blue_move(self):
         path_progress_contribution, path, reachedGoal, _ = self.perform_path_search(self.gameState, False, True)
@@ -447,7 +454,7 @@ class Player:
 
                 # if self.gameState.player == blue and for_path_move:
                     # print(len(path), path)
-                if newcost+1 < cost:
+                if newcost+1 < cost or newcost == 0:
                     cost = newcost
                     if not for_eval or for_path_move:
                         path = gameState.reconstruct_path(came_from, start, endGoal)
